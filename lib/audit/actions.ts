@@ -352,6 +352,7 @@ export const AUDIT_ACTIONS = [
   "ai.case_noted_by_agent",
   "ai.case_closed_by_agent",
   "pipeline.agent_mapping_updated",
+  "pipeline.responsible_agent_updated",
   "pipeline.stage_created",
   "pipeline.stage_updated",
   "pipeline.stage_archived",

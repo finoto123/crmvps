@@ -22,6 +22,7 @@ import { customFieldSchema, type CustomFieldDef } from "@/lib/schemas/settings";
 import { Plus, Trash } from "@/lib/ui/icons";
 import { AgentMappingSection, ancoraDoMapeamento } from "./_mapping";
 import { StagesSection, ancoraDasEtapas } from "./_stages";
+import { ResponsibleAgentSection } from "./_responsible-agent";
 
 export interface PipelineRow {
   id: string;
@@ -100,6 +101,7 @@ export function PipelinesClient({
           <div className="border-t border-border pt-6">
             <AgentMappingSection pipelineId={p.id} ancoraEtapas={ancoraDasEtapas(p.id)} />
           </div>
+          <ResponsibleAgentSection pipelineId={p.id} />
           {podeEditarConfig && <PipelineEditor pipeline={p} />}
         </Card>
       ))}

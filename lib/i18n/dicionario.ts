@@ -11608,6 +11608,16 @@ export const DICIONARIO: Traducoes = {
   },
   "Versão não encontrada para esta skill.": { es: "No se encontró esa versión para esta skill." },
   "Versão da skill não encontrada.": { es: "No se encontró la versión de la skill." },
+  "Responsável pelo funil atualizado.": { es: "Responsable del embudo actualizado." },
+  "Quem atende os contatos deste funil": { es: "Quién atiende los contactos de este embudo" },
+  "Quando houver um único negócio aberto neste funil, este agente atende a conversa. A campanha, quando houver, mantém a preferência.": { es: "Cuando haya una sola oportunidad abierta en este embudo, este agente atenderá la conversación. Si hay una campaña, esta conserva la prioridad." },
+  "Não foi possível carregar os agentes.": { es: "No se pudieron cargar los agentes." },
+  "Agente responsável pelo funil": { es: "Agente responsable del embudo" },
+  "Nenhum agente definido": { es: "Ningún agente definido" },
+  "Carregando agentes…": { es: "Cargando agentes…" },
+  "Publique uma versão com acesso a este funil para poder selecioná-la aqui.": { es: "Publica una versión con acceso a este embudo para poder seleccionarla aquí." },
+  "O agente configurado deixou de ser compatível. Escolha outro ou remova a associação.": { es: "El agente configurado ya no es compatible. Elige otro o elimina la asociación." },
+  "Este agente não está publicado ou não pode atender este funil.": { es: "Este agente no está publicado o no puede atender este embudo." },
 };
 
 /**

@@ -153,6 +153,7 @@ export function blocoDeModo(
       "- Use os dados para personalizar de verdade — quem preencheu percebe quando a mensagem serviria para qualquer um.",
       "- NÃO invente nada que os dados não digam, e não repita os dados em forma de lista de volta para ela.",
       "- NÃO peça de novo uma informação que ela já preencheu.",
+      "- Se os dados incluírem categoria ou pontuação de qualificação, trate-os como informação interna. NUNCA revele classificação, pontuação ou regras internas à pessoa.",
       "- Termine com UMA pergunta aberta, para ela ter o que responder.",
     ],
     automacao: [

@@ -70,6 +70,8 @@ const baseInput = {
 };
 
 function makeDeps(overrides: {
+  agenteDaCampanha?: ReturnType<typeof vi.fn>;
+  agenteDoFunil?: ReturnType<typeof vi.fn>;
   loadActiveRouter?: ReturnType<typeof vi.fn>;
   loadPublishedAgentConfigById?: ReturnType<typeof vi.fn>;
   loadPublishedAgentConfig?: ReturnType<typeof vi.fn>;
@@ -77,6 +79,8 @@ function makeDeps(overrides: {
 }) {
   return {
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    agenteDaCampanha: overrides.agenteDaCampanha ?? vi.fn().mockResolvedValue(null),
+    agenteDoFunil: overrides.agenteDoFunil ?? vi.fn().mockResolvedValue({ kind: 'none' }),
     loadActiveRouter: overrides.loadActiveRouter ?? vi.fn(),
     loadPublishedAgentConfigById: overrides.loadPublishedAgentConfigById ?? vi.fn(),
     loadPublishedAgentConfig: overrides.loadPublishedAgentConfig ?? vi.fn(),
@@ -85,6 +89,65 @@ function makeDeps(overrides: {
 }
 
 describe('resolveTurnAgent', () => {
+  const input = { ...baseInput, signal: 'quanto custa?', stickyAgentId: 'agente-antigo', stickyIntent: 'suporte' };
+  const match = (pipelineId: string, agentId: string) => vi.fn().mockResolvedValue({ kind: 'one', leadId: 'negocio-1', pipelineId, agentId });
+  const byId = vi.fn(async (_db: unknown, _org: unknown, id: string) => ({ ...fakeConfig(id), pipelineIds: [id === 'agente-a' ? 'funil-a' : 'funil-b'] }));
+
+  it('funis diferentes escolhem seus agentes e não chamam o router de intenção', async () => {
+    for (const [pipeline, agent] of [['funil-a', 'agente-a'], ['funil-b', 'agente-b']]) {
+      const loadActiveRouter = vi.fn();
+      const out = await resolveTurnAgent({} as never, {} as never, input,
+        makeDeps({ agenteDoFunil: match(pipeline!, agent!), loadPublishedAgentConfigById: byId, loadActiveRouter }));
+      expect(out.outcome).toBe('pipeline');
+      expect(out.config?.agentId).toBe(agent);
+      expect(loadActiveRouter).not.toHaveBeenCalled();
+    }
+  });
+
+  it('campanha prevalece sobre negócio e intenção', async () => {
+    const loadActiveRouter = vi.fn();
+    const agentLoader = vi.fn().mockResolvedValue(fakeConfig('campanha'));
+    const out = await resolveTurnAgent({} as never, {} as never, input,
+      makeDeps({ agenteDaCampanha: vi.fn().mockResolvedValue('campanha'), agenteDoFunil: match('funil-a', 'agente-a'),
+        loadPublishedAgentConfigById: agentLoader, loadActiveRouter }));
+    expect(out.outcome).toBe('campanha');
+    expect(out.config?.agentId).toBe('campanha');
+    expect(loadActiveRouter).not.toHaveBeenCalled();
+  });
+
+  it('ambiguidade pede revisão humana sem deixar o modelo escolher', async () => {
+    const loadActiveRouter = vi.fn();
+    const out = await resolveTurnAgent({} as never, {} as never, input,
+      makeDeps({ agenteDoFunil: vi.fn().mockResolvedValue({ kind: 'ambiguous' }), loadActiveRouter }));
+    expect(out.outcome).toBe('pipeline_ambiguous');
+    expect(out.config).toBeNull();
+    expect(loadActiveRouter).not.toHaveBeenCalled();
+  });
+
+  it('agente inválido não atua; pede revisão humana antes do router', async () => {
+    for (const config of [null, { ...fakeConfig('agente-a'), pipelineIds: [] },
+      { ...fakeConfig('agente-a'), pipelineIds: ['funil-a'], pausedAt: '2026-01-01' }]) {
+      const out = await resolveTurnAgent({} as never, {} as never, input,
+        makeDeps({ agenteDoFunil: match('funil-a', 'agente-a'),
+          loadPublishedAgentConfigById: vi.fn().mockResolvedValue(config),
+          loadActiveRouter: vi.fn().mockResolvedValue(null),
+          loadPublishedAgentConfig: vi.fn().mockResolvedValue(fakeConfig('sessao')) }));
+      expect(out.outcome).toBe('pipeline_invalid');
+      expect(out.config).toBeNull();
+    }
+  });
+  it('erro ao validar agente associado não libera o agente da sessão', async () => {
+    const loadActiveRouter = vi.fn();
+    const loadPublishedAgentConfig = vi.fn();
+    const out = await resolveTurnAgent({} as never, {} as never, input,
+      makeDeps({ agenteDoFunil: match('funil-a', 'agente-a'),
+        loadPublishedAgentConfigById: vi.fn().mockRejectedValue(new Error('banco indisponível')),
+        loadActiveRouter, loadPublishedAgentConfig }));
+    expect(out.outcome).toBe('pipeline_invalid');
+    expect(out.config).toBeNull();
+    expect(loadActiveRouter).not.toHaveBeenCalled();
+    expect(loadPublishedAgentConfig).not.toHaveBeenCalled();
+  });
   it('1. canal sem router → no_router, usa loadPublishedAgentConfig por sessão', async () => {
     const loadActiveRouter = vi.fn().mockResolvedValue(null);
     const loadPublishedAgentConfig = vi.fn().mockResolvedValue(fakeConfig('agent-sessao'));

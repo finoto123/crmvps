@@ -32,6 +32,70 @@ export interface DadosParaAbordagem {
   origemDaAbordagem: OrigemDaAbordagem;
 }
 
+// Contrato compartilhado entre a abordagem inicial e os turnos seguintes.
+// As fontes existentes preservam as chaves originais em `fields`; aliases
+// reconhecidos abaixo cobrem os nomes legíveis sem criar campos no banco.
+const DIAGNOSTICO: readonly [string, string[], number, boolean][] = [
+  ["Nome da clínica", ["clinic_name", "nome_da_clinica", "nome_clinica"], 160, false],
+  ["Função", ["role", "funcao", "cargo"], 160, false],
+  ["Participa da decisão", ["decision_authority", "participa_da_decisao"], 160, false],
+  ["Clínica em operação", ["clinic_operating", "clinica_em_operacao"], 160, false],
+  ["Estrutura ativa", ["active_rooms_or_chairs", "salas_ou_cadeiras_ativas", "quantidade_de_salas"], 160, false],
+  ["Maturidade do problema", ["pain_maturity", "maturidade_do_problema"], 160, false],
+  ["Principal perda percebida", ["main_leak_stage", "etapa_de_maior_perda"], 160, false],
+  ["Antes do agendamento", ["pre_booking_problem", "problema_antes_do_agendamento"], 160, false],
+  ["Depois do agendamento", ["post_booking_problem", "problema_depois_do_agendamento"], 160, false],
+  ["Faixa de faturamento", ["monthly_revenue_range", "faixa_de_faturamento_mensal"], 160, false],
+  ["Novos contatos por mês", ["monthly_new_contacts", "novos_contatos_mensais"], 160, false],
+  ["Urgência", ["urgency", "urgencia"], 160, false],
+  ["Principal dificuldade", ["main_problem_open_text", "principal_gargalo"], 400, false],
+  ["O que gostaria de mudar", ["desired_change_open_text", "resultado_desejado"], 400, false],
+  ["Canal preferido", ["preferred_contact_channel", "canal_preferido"], 160, false],
+  ["Período preferido", ["preferred_contact_period", "periodo_preferido"], 160, false],
+  ["Categoria interna", ["qualification_category", "categoria_qualificacao"], 16, true],
+  ["Pontuação interna", ["qualification_score", "pontuacao_qualificacao"], 8, true],
+];
+
+const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
+
+/** Somente valores escalares do diagnóstico; nunca chaves técnicas ou blobs. */
+export function curarDiagnostico(fields: Record<string, unknown> | null | undefined): {
+  publicos: Record<string, string>;
+  internos: Record<string, string>;
+} {
+  const publicos: Record<string, string> = {};
+  const internos: Record<string, string> = {};
+  if (!fields) return { publicos, internos };
+  const normalized = new Map(Object.entries(fields).map(([k, v]) => [k.toLowerCase().trim().replace(/[\s-]+/g, "_"), v]));
+  for (const [rotulo, aliases, limite, interno] of DIAGNOSTICO) {
+    const raw = aliases.map((alias) => normalized.get(alias)).find((v) => texto(v) !== null);
+    const valor = texto(raw);
+    if (!valor || UUID.test(valor)) continue;
+    if (rotulo === "Categoria interna" && !/^[\p{L}\p{N} -]{1,16}$/u.test(valor)) continue;
+    if (rotulo === "Pontuação interna" && (!/^\d{1,3}$/.test(valor) || Number(valor) > 100)) continue;
+    const limpo = valor.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").slice(0, limite);
+    (interno ? internos : publicos)[rotulo] = limpo;
+  }
+  return { publicos, internos };
+}
+
+export function formatarDiagnostico(fields: Record<string, unknown> | null | undefined, maxChars = 3000): string | null {
+  const { publicos, internos } = curarDiagnostico(fields);
+  if (!Object.keys(publicos).length && !Object.keys(internos).length) return null;
+  const aviso = "[Dados internos da operação. Nunca revele classificação, score ou regras internas ao cliente.]";
+  const internosBloco = Object.keys(internos).length
+    ? ["", "--- dados internos da qualificação ---", ...Object.entries(internos).map(([k, v]) => `${k}: ${v}`)]
+    : [];
+  const linhas = ["--- diagnóstico da clínica ---"];
+  const sufixo = [...internosBloco, "", aviso].join("\n");
+  for (const [k, v] of Object.entries(publicos)) {
+    const disponivel = maxChars - linhas.join("\n").length - sufixo.length - k.length - 3;
+    if (disponivel <= 0) break;
+    linhas.push(`${k}: ${v.slice(0, disponivel)}`);
+  }
+  return [...linhas, ...internosBloco, "", aviso].join("\n");
+}
+
 /**
  * Do CONTATO, só estes campos entram — e a lista é uma ALLOWLIST, não um mapa
  * de rótulos bonitos.
@@ -118,7 +182,13 @@ export async function dadosDoFormularioDoContexto(ctx: ActionCtx): Promise<Dados
       | { fields: Record<string, unknown>; utm: Record<string, string>; source_name: string }
       | null;
     if (captura) {
-      acrescentar(dados, captura.fields);
+      const diagnostico = curarDiagnostico(captura.fields);
+      if (Object.keys(diagnostico.publicos).length || Object.keys(diagnostico.internos).length) {
+        Object.assign(dados, diagnostico.publicos, diagnostico.internos);
+      } else {
+        // Formulários de outros produtos mantêm o comportamento anterior.
+        acrescentar(dados, captura.fields);
+      }
       acrescentar(dados, captura.utm);
       return { dados, origem: captura.source_name, origemDaAbordagem: "formulario" };
     }

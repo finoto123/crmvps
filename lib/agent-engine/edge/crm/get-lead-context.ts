@@ -16,6 +16,7 @@ import type { CrmEdgeConfig } from './mcp-client';
 import { deriveLgpdFromContact, type LgpdInput } from '../../guardrails/lgpd/legal-basis';
 import { isoLocalComOffset } from '@/lib/tempo/agora';
 import { nomeDoContato } from '@/lib/contacts/rotulo-do-contato';
+import { formatarDiagnostico } from '@/lib/automation/dados-do-formulario';
 
 /**
  * Heurística conservadora de contagem: ~3,5 chars/token para pt-br (BPE real fica
@@ -97,6 +98,8 @@ export interface LeadContext {
   };
   conversation_id: string | null;
   previous_service?: { label: string; outcomes: string[] };
+  /** Dados curados do negócio único ativo, sem identificadores ou chaves técnicas. */
+  diagnostico?: string;
   /**
    * `null` quando nenhum humano decidiu nada sobre propostas deste contato.
    *
@@ -263,6 +266,30 @@ export async function getLeadContext(
      where d.organization_id=$1 and dc.conversation_id=$2 and d.fechada_em is not null limit 5`,
     [input.tenantId, conversationId]);
 
+  // Duas correspondências abertas não autorizam escolher um diagnóstico.
+  // A captação original é a fonte preferida; custom_fields cobre importações.
+  const { rows: businesses } = await db.query<{ id: string; custom_fields: Record<string, unknown> | null; responsible_agent_id: string | null }>(
+    `select l.id, l.custom_fields, p.responsible_agent_id from crm_leads l
+      join crm_pipelines p on p.organization_id = l.organization_id and p.id = l.pipeline_id
+      where l.organization_id = $1 and l.contact_id = $2 and l.status = 'open'
+      order by l.id`,
+    [input.tenantId, input.leadId],
+  );
+  let diagnostico: string | null = null;
+  const eligible = businesses.filter((business) => business.responsible_agent_id !== null);
+  const business = eligible.length === 1 ? eligible[0] : eligible.length === 0 && businesses.length === 1 ? businesses[0] : null;
+  if (business) {
+    const { rows: captures } = await db.query<{ fields: Record<string, unknown> }>(
+      `select fields from webhook_lead_captures
+        where organization_id = $1 and lead_id = $2
+        order by received_at asc, id asc limit 1`,
+      [input.tenantId, business.id],
+    );
+    const limite = Math.max(0, Math.floor(knobs.maxTokens * CHARS_PER_TOKEN * 0.25));
+    diagnostico = formatarDiagnostico(captures[0]?.fields, limite)
+      ?? formatarDiagnostico(business.custom_fields, limite);
+  }
+
   const context = fitToBudget(
     {
       previous_service: { label: 'Histórico encerrado. Desfechos anteriores não são tarefas ou compromissos pendentes.', outcomes: previousOutcomes.map((d) => d.desfecho) },
@@ -285,6 +312,7 @@ export async function getLeadContext(
         is_blocked: contact.is_blocked,
       },
       conversation_id: conversationId,
+      ...(diagnostico ? { diagnostico } : {}),
       last_human_decision: lastHumanDecision,
     },
     history,
@@ -345,6 +373,7 @@ function fitToBudget(
   maxTokens: number,
   fuso: string,
 ): LeadContext {
+  // O formatter já reservou no máximo 1/4 do teto e preservou a instrução interna.
   let messages: LeadContextMessage[] = history.map((m) => {
     const hasMedia = Boolean(m.media_storage_path || m.media_url);
     // A composição do corpo é UMA só, exportada logo acima: a linha canônica do
@@ -369,6 +398,9 @@ function fitToBudget(
   }
   while (messages.length === 1 && messages[0]!.body.length > 0 && over(messages)) {
     messages = [{ ...messages[0]!, body: messages[0]!.body.slice(0, Math.floor(messages[0]!.body.length / 2)) }];
+  }
+  if (over(messages) && base.diagnostico) {
+    base = { ...base, diagnostico: '' };
   }
   return build(messages);
 }

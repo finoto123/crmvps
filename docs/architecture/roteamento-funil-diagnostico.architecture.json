@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Responsável pelo funil e diagnóstico no turno",
+    "subtitle": "Associação explícita por organização; captação curada no contexto",
+    "output": "roteamento-funil-diagnostico.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    {
+      "id": "tela",
+      "label": "Configuração"
+    },
+    {
+      "id": "dados",
+      "label": "Dados"
+    },
+    {
+      "id": "turno",
+      "label": "Turno do agente"
+    },
+    {
+      "id": "retorno",
+      "label": "Revisão humana"
+    }
+  ],
+  "mainPath": [
+    "funis",
+    "api",
+    "pipeline",
+    "resolver",
+    "agente",
+    "contexto"
+  ],
+  "nodes": [
+    {
+      "id": "funis",
+      "lane": "tela",
+      "col": 0,
+      "type": "ui",
+      "label": "Configurações › Funis: quem atende"
+    },
+    {
+      "id": "api",
+      "lane": "tela",
+      "col": 1,
+      "type": "service",
+      "label": "GET/PUT responsável: manager+, org do JWT, audit"
+    },
+    {
+      "id": "pipeline",
+      "lane": "dados",
+      "col": 2,
+      "type": "database",
+      "label": "crm_pipelines.responsible_agent_id: FK por organização, padrão NULL"
+    },
+    {
+      "id": "campanha",
+      "lane": "turno",
+      "col": 0,
+      "type": "service",
+      "label": "Agente da campanha que criou a conversa tem prioridade"
+    },
+    {
+      "id": "resolver",
+      "lane": "turno",
+      "col": 3,
+      "type": "service",
+      "label": "Negócios abertos elegíveis: zero, um ou ambiguidade"
+    },
+    {
+      "id": "agente",
+      "lane": "turno",
+      "col": 4,
+      "type": "service",
+      "label": "Versão publicada, ativa, mesma org e funil permitido"
+    },
+    {
+      "id": "router",
+      "lane": "turno",
+      "col": 5,
+      "type": "service",
+      "label": "Sem correspondência: sticky, intenção, sessão, fallback"
+    },
+    {
+      "id": "captura",
+      "lane": "dados",
+      "col": 3,
+      "type": "database",
+      "label": "webhook_lead_captures do negócio aberto da organização"
+    },
+    {
+      "id": "curadoria",
+      "lane": "turno",
+      "col": 4,
+      "type": "service",
+      "label": "Whitelist compartilhada com abordagem inicial"
+    },
+    {
+      "id": "contexto",
+      "lane": "turno",
+      "col": 6,
+      "type": "service",
+      "label": "Bloco legível, dados internos marcados, teto de tokens"
+    },
+    {
+      "id": "revisao",
+      "lane": "retorno",
+      "col": 5,
+      "type": "ui",
+      "label": "Ambiguidade ou associação inválida: conversa pendente e aviso no Inbox"
+    }
+  ],
+  "edges": [
+    {
+      "from": "funis",
+      "to": "api",
+      "label": "escolha",
+      "id": "ligacao-1"
+    },
+    {
+      "from": "api",
+      "to": "pipeline",
+      "label": "associação validada",
+      "id": "ligacao-2"
+    },
+    {
+      "from": "pipeline",
+      "to": "resolver",
+      "label": "somente funis associados",
+      "id": "ligacao-3"
+    },
+    {
+      "from": "campanha",
+      "to": "resolver",
+      "label": "se não prevalecer",
+      "id": "ligacao-4"
+    },
+    {
+      "from": "resolver",
+      "to": "agente",
+      "label": "um negócio",
+      "id": "ligacao-5"
+    },
+    {
+      "from": "resolver",
+      "to": "router",
+      "label": "zero negócio elegível",
+      "id": "ligacao-6"
+    },
+    {
+      "from": "resolver",
+      "to": "revisao",
+      "label": "ambíguo ou inválido",
+      "id": "ligacao-7"
+    },
+    {
+      "from": "captura",
+      "to": "curadoria",
+      "label": "campos da fonte correta",
+      "id": "ligacao-8"
+    },
+    {
+      "from": "curadoria",
+      "to": "contexto",
+      "label": "campos permitidos",
+      "id": "ligacao-9"
+    },
+    {
+      "from": "agente",
+      "to": "contexto",
+      "label": "turno autorizado",
+      "id": "ligacao-10"
+    }
+  ]
+}
