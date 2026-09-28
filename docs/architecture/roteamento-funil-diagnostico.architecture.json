@@ -88,7 +88,7 @@
       "lane": "dados",
       "col": 3,
       "type": "database",
-      "label": "webhook_lead_captures do negócio aberto da organização"
+      "label": "webhook_lead_captures do negócio aberto da organização, em funil não arquivado"
     },
     {
       "id": "curadoria",
@@ -109,7 +109,7 @@
       "lane": "retorno",
       "col": 5,
       "type": "ui",
-      "label": "Ambiguidade ou associação inválida: conversa pendente e aviso no Inbox"
+      "label": "Ambiguidade, falha de consulta ou associação inválida: conversa pendente e aviso no Inbox"
     }
   ],
   "edges": [

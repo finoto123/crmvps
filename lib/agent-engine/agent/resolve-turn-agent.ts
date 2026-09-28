@@ -165,9 +165,12 @@ export async function resolveTurnAgent(
         db, input.tenantId, input.leadId,
       );
     } catch (err) {
-      deps.log.warn('leitura do responsável pelo funil falhou; seguindo roteamento da sessão', {
+      deps.log.warn('leitura do responsável pelo funil falhou; revisão humana necessária', {
         reason: err instanceof Error ? err.name : 'unknown',
       });
+      // Uma consulta que falhou não comprova ausência de associação. Deixar
+      // o router seguir poderia trocar o agente de um negócio já vinculado.
+      return { config: null, routerId: null, intentName: null, confidence: null, outcome: 'pipeline_invalid' };
     }
     if (correspondencia.kind === 'ambiguous') {
       deps.log.warn('roteamento por funil precisa de revisão humana', { reason: 'multiple_open_mapped_leads' });

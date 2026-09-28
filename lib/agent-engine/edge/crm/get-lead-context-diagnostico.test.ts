@@ -36,6 +36,8 @@ describe('diagnóstico no contexto do turno', () => {
     expect(result.tokenCount).toBeLessThanOrEqual(1000);
     const captureCall = db.query.mock.calls.find(([sql]) => sql.includes('from webhook_lead_captures'));
     expect(captureCall?.[1]).toEqual(['org-a', 'negocio-a']);
+    const businessCall = db.query.mock.calls.find(([sql]) => sql.includes('from crm_leads l'));
+    expect(businessCall?.[0]).toContain('p.is_archived = false');
   });
 
   it('sem diagnóstico ou captação de outra org mantém o turno sem o bloco', async () => {

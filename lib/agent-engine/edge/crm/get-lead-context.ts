@@ -272,6 +272,7 @@ export async function getLeadContext(
     `select l.id, l.custom_fields, p.responsible_agent_id from crm_leads l
       join crm_pipelines p on p.organization_id = l.organization_id and p.id = l.pipeline_id
       where l.organization_id = $1 and l.contact_id = $2 and l.status = 'open'
+        and p.is_archived = false
       order by l.id`,
     [input.tenantId, input.leadId],
   );

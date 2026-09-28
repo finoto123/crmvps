@@ -124,6 +124,18 @@ describe('resolveTurnAgent', () => {
     expect(loadActiveRouter).not.toHaveBeenCalled();
   });
 
+  it('falha na consulta do funil não autoriza trocar para router ou agente da sessão', async () => {
+    const loadActiveRouter = vi.fn();
+    const loadPublishedAgentConfig = vi.fn();
+    const out = await resolveTurnAgent({} as never, {} as never, input,
+      makeDeps({ agenteDoFunil: vi.fn().mockRejectedValue(new Error('database unavailable')),
+        loadActiveRouter, loadPublishedAgentConfig }));
+    expect(out.outcome).toBe('pipeline_invalid');
+    expect(out.config).toBeNull();
+    expect(loadActiveRouter).not.toHaveBeenCalled();
+    expect(loadPublishedAgentConfig).not.toHaveBeenCalled();
+  });
+
   it('agente inválido não atua; pede revisão humana antes do router', async () => {
     for (const config of [null, { ...fakeConfig('agente-a'), pipelineIds: [] },
       { ...fakeConfig('agente-a'), pipelineIds: ['funil-a'], pausedAt: '2026-01-01' }]) {
@@ -311,7 +323,8 @@ describe('resolveTurnAgent', () => {
     const warn = vi.fn();
     const out = await resolveTurnAgent({} as never, {} as never,
       { ...baseInput, signal: 'quanto custa?', stickyAgentId: null, stickyIntent: null },
-      { log: { info: vi.fn(), warn, error: vi.fn() }, loadActiveRouter, classifyIntent, loadPublishedAgentConfigById } as never);
+      { log: { info: vi.fn(), warn, error: vi.fn() }, loadActiveRouter, classifyIntent, loadPublishedAgentConfigById,
+        agenteDoFunil: vi.fn().mockResolvedValue({ kind: 'none' }) } as never);
     // NUNCA outcome 'classified' com config null — telemetria não pode mentir.
     expect(out.outcome).toBe('fallback');
     expect(out.config?.agentId).toBe('agent-fallback');
@@ -355,7 +368,8 @@ describe('resolveTurnAgent', () => {
     const warn = vi.fn();
     const out = await resolveTurnAgent({} as never, {} as never,
       { ...baseInput, signal: 'blablabla', stickyAgentId: null, stickyIntent: null },
-      { log: { info: vi.fn(), warn, error: vi.fn() }, loadActiveRouter, classifyIntent, loadPublishedAgentConfig } as never);
+      { log: { info: vi.fn(), warn, error: vi.fn() }, loadActiveRouter, classifyIntent, loadPublishedAgentConfig,
+        agenteDoFunil: vi.fn().mockResolvedValue({ kind: 'none' }) } as never);
     expect(out.config).toBeNull();
     expect(out.outcome).toBe('no_match');
     expect(warn).toHaveBeenCalled();
