@@ -18,7 +18,7 @@ import { createLeadHandler } from "@/app/api/v1/leads/_handler";
 import { emitLeadActivity } from "@/lib/leads/activity-emitter";
 import { classificarLeadInicial, type ResultadoClassificacaoInicial } from "@/lib/leads/classificacao-inicial";
 import type { CreateLeadInput } from "@/lib/schemas";
-import { mapInboundPayload, verifyInboundSignature, type FieldMap } from "@/lib/webhooks/inbound";
+import { consentFromDiagnosticPayload, mapInboundPayload, verifyInboundSignature, type FieldMap } from "@/lib/webhooks/inbound";
 import { encontrarContatoPorTelefoneComNome } from "@/lib/channels/contato-por-telefone";
 import {
   buildContactConsentGrant,
@@ -326,7 +326,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
    * ou no que um envio anterior gravou).
    */
   const consentDoEnvio = (() => {
-    if (!respondiMapped) return null;
+    if (!respondiMapped) return consentFromDiagnosticPayload(payload, validSignature === true);
     if (respondiMapped.consent.detectedVia === "not_found") return null;
     const formId = respondiMapped.custom_fields.respondi_form_id ?? null;
     return respondiMapped.consent.granted
@@ -392,7 +392,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
           email: mapped.email,
           source: "webhook",
           source_metadata: { webhook_source_id: source.id, ...mapped.source_metadata },
-          // Consentimento explícito só quando o Respondi confirmou concessão —
+          // Consentimento explícito só quando a fonte comprovou a concessão —
           // recusa NUNCA vira concessão por omissão. E a recusa agora é
           // GRAVADA, não omitida: o DEFAULT da coluna já é `granted_at: null`,
           // então omitir deixava "nunca perguntamos" e "disse não" com a mesma
@@ -447,8 +447,8 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
    *
    * Escreve o objeto inteiro (as 3 finalidades), como o INSERT: a coluna é um
    * mapa de finalidades e este webhook só capta `marketing`; `transactional` e
-   * `profiling` seguem null como o default. Só para envio do Respondi — um
-   * webhook genérico não pergunta consentimento e não tem o que afirmar.
+   * `profiling` seguem null como o default. O diagnóstico assinado também
+   * registra resposta explícita; outros webhooks genéricos não afirmam nada.
    *
    * Falha aqui não derruba a captação: o contato já está resolvido e o lead
    * ainda vai entrar. Perder o carimbo é ruim; perder a captação é pior. Fica
