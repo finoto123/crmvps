@@ -59,6 +59,11 @@ function setup(a: PublishedAgentConfig, b: PublishedAgentConfig, sticky: boolean
   mocks.bySession.mockResolvedValue(a);
   mocks.conversationAgent.mockResolvedValue(a);
   const query = vi.fn(async (sql: string, values: unknown[]) => {
+    // Estes cenarios nao possuem negocio aberto com agente responsavel.
+    if (sql.includes('from crm_leads l')) {
+      expect(values).toEqual([ids.org, ids.contact]);
+      return { rows: [] };
+    }
     // Contexto curto do classificador (id do signal + limite): não pesa na seleção testada aqui.
     if (sql.includes('id<>$3')) {
       expect(values.slice(0, 2)).toEqual([ids.org, ids.conversation]);
