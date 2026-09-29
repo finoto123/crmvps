@@ -58,6 +58,10 @@ describe('loadPublishedAgentConfigById', () => {
     // valor sem usar) — falha se o `and a.organization_id = $1` sumir do SQL.
     expect(sql).toMatch(/a\.organization_id\s*=\s*\$1/);
     expect(sql).toMatch(/a\.id\s*=\s*\$2/);
+    expect(sql).toMatch(/a\.archived_at is null/);
+    expect(sql).toMatch(/v\.status = 'published'/);
+    expect(sql).toMatch(/v\.organization_id = a\.organization_id/);
+    expect(sql).toMatch(/v\.agent_id = a\.id/);
   });
 
   it('retorna null quando o agente não é encontrado', async () => {

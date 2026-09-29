@@ -26,6 +26,32 @@ export interface MappedLead {
   source_metadata: Record<string, string>;
 }
 
+/** Consentimento explícito do diagnóstico, aceito apenas da fonte com HMAC válido. */
+export function consentFromDiagnosticPayload(
+  payload: Record<string, unknown>,
+  signatureVerified: boolean,
+): {
+  marketing: { granted_at: string | null; declined_at?: string; source: string; version: string };
+  transactional: { granted_at: null; source: null; version: null };
+  profiling: { granted_at: null; source: null; version: null };
+} | null {
+  if (!signatureVerified || payload.consent_version !== "diagnostic-contact-v1") return null;
+  if (typeof payload.consent_accepted !== "boolean") return null;
+
+  const accepted = payload.consent_accepted;
+  const at = new Date().toISOString();
+  return {
+    marketing: {
+      granted_at: accepted ? at : null,
+      ...(!accepted ? { declined_at: at } : {}),
+      source: "webhook:agenda-continua",
+      version: "diagnostic-contact-v1",
+    },
+    transactional: { granted_at: null, source: null, version: null },
+    profiling: { granted_at: null, source: null, version: null },
+  };
+}
+
 /** Normaliza telefone BR para E.164 com o nono dígito no celular. */
 export function normalizePhoneBR(raw: unknown): string | null {
   if (typeof raw !== "string" || !raw.trim()) return null;

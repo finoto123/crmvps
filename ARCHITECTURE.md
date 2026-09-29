@@ -54,8 +54,11 @@ request → proxy.ts (X-Request-Id, x-pathname; isPublicPath? → bypass;
 [`docs/threat-model.md`](docs/threat-model.md) §1.
 
 **Turno do agente de IA:** inbound WhatsApp → HMAC + idempotência → `event_log` →
-worker → `runAgentTurn` (RAG + tools MCP) → guardrails before-send → adapter WAHA →
-handoff humano se gatilho. Diagrama: [`docs/architecture/agent-turn.html`](docs/architecture/agent-turn.html).
+worker → campanha que criou a conversa → agente responsável pelo funil do único negócio aberto →
+sticky/roteador por intenção → agente da sessão/fallback → `runAgentTurn` (contexto curado do diagnóstico,
+RAG + tools MCP) → guardrails before-send → adapter WAHA → handoff humano se gatilho.
+Associação inválida ou mais de um negócio elegível gera pendência de revisão humana. Sem associação, o
+comportamento antigo permanece. Mapa: [`docs/architecture/roteamento-funil-diagnostico.architecture.json`](docs/architecture/roteamento-funil-diagnostico.architecture.json).
 
 ## Event log + workers
 

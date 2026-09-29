@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapInboundPayload, normalizePhoneBR, verifyInboundSignature } from "@/lib/webhooks/inbound";
+import { consentFromDiagnosticPayload, mapInboundPayload, normalizePhoneBR, verifyInboundSignature } from "@/lib/webhooks/inbound";
 import { createHmac } from "node:crypto";
 
 describe("normalizePhoneBR", () => {
@@ -54,4 +54,29 @@ describe("verifyInboundSignature", () => {
   it("header ausente", () => expect(verifyInboundSignature(body, null, secret)).toBe(false));
   it("header com tamanho diferente não lança (timingSafeEqual exige mesmo length)", () =>
     expect(verifyInboundSignature(body, "abc", secret)).toBe(false));
+});
+
+describe("consentFromDiagnosticPayload", () => {
+  const diagnostic = { consent_version: "diagnostic-contact-v1", consent_accepted: true };
+
+  it("grava concessão estruturada somente após HMAC válido", () => {
+    expect(consentFromDiagnosticPayload(diagnostic, false)).toBeNull();
+    expect(consentFromDiagnosticPayload(diagnostic, true)).toMatchObject({
+      marketing: {
+        granted_at: expect.any(String),
+        source: "webhook:agenda-continua",
+        version: "diagnostic-contact-v1",
+      },
+      transactional: { granted_at: null },
+      profiling: { granted_at: null },
+    });
+  });
+
+  it("recusa explícita bloqueia automação; string ou versão desconhecida não viram concessão", () => {
+    expect(consentFromDiagnosticPayload({ ...diagnostic, consent_accepted: false }, true)).toMatchObject({
+      marketing: { granted_at: null, declined_at: expect.any(String) },
+    });
+    expect(consentFromDiagnosticPayload({ ...diagnostic, consent_accepted: "true" }, true)).toBeNull();
+    expect(consentFromDiagnosticPayload({ ...diagnostic, consent_version: "unknown" }, true)).toBeNull();
+  });
 });

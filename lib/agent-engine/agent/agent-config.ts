@@ -228,7 +228,7 @@ export async function loadPublishedAgentConfig(
   const { rows } = await db.query<Row>(
     `select ${SELECT_AGENT_CONFIG_COLUMNS}
      from ai_agents a
-     join ai_agent_versions v on v.id = a.published_version_id
+     join ai_agent_versions v on v.id = a.published_version_id and v.organization_id = a.organization_id and v.agent_id = a.id
      where a.organization_id = $1
        and a.archived_at is null
        -- is_active é semântica do rag_bot legado; para mcp_agent "ativo" =
@@ -259,7 +259,7 @@ export async function loadPublishedAgentConfigById(
   const { rows } = await db.query<Row>(
     `select ${SELECT_AGENT_CONFIG_COLUMNS}
      from ai_agents a
-     join ai_agent_versions v on v.id = a.published_version_id
+     join ai_agent_versions v on v.id = a.published_version_id and v.organization_id = a.organization_id and v.agent_id = a.id
      where a.organization_id = $1
        and a.archived_at is null
        and v.status = 'published'

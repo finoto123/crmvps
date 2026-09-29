@@ -1,10 +1,11 @@
 /**
- * Resolvedor do turno do Intent Router (Fase 3 — Task 4): decide QUAL agente
- * atende o turno — sticky → classificação → fallback → genérico. Task 5
+ * Resolvedor do turno: campanha → funil do negócio → sticky → classificação →
+ * fallback → agente da sessão → genérico. Task 5
  * (inbound-turn) consome `TurnAgentResolution` no lugar da chamada direta a
  * `loadPublishedAgentConfig` por channel_session.
  *
- * Regra de decisão (spec 2026-07-23, decisões do Rafael 2026-07-26):
+ * Regra do Intent Router (spec 2026-07-23, decisões do Rafael 2026-07-26),
+ * aplicada somente quando campanha e funil não resolveram o turno:
  *   1. sem router ativo pra sessão ⇒ fluxo atual intacto (config por sessão).
  *   2. sticky ativo (router.sticky + stickyAgentId ainda membro do router):
  *      classifica MESMO ASSIM (barato, é o que detecta troca de assunto) —
@@ -61,6 +62,7 @@ import type pg from 'pg';
 import type { Logger } from '../obs/logger';
 import type { LlmEdgeConfig } from '../edge/llm/run-model-call';
 import { agenteDaCampanhaDaConversa } from './agente-da-campanha';
+import { agenteDoFunilDoContato } from './agente-do-funil';
 import { loadActiveRouter } from './router-config';
 import {
   loadPublishedAgentConfig,
@@ -91,6 +93,9 @@ export interface TurnAgentResolution {
     | 'fallback'
     | 'no_match'
     | 'classifier_failed'
+    | 'pipeline'
+    | 'pipeline_ambiguous'
+    | 'pipeline_invalid'
     /** A conversa nasceu de uma campanha que declarou agente (migration 0267). */
     | 'campanha';
 }
@@ -99,6 +104,7 @@ export interface ResolveTurnAgentDeps {
   log: Logger;
   /** Injetável para o teste não precisar de banco. */
   agenteDaCampanha?: typeof agenteDaCampanhaDaConversa;
+  agenteDoFunil?: typeof agenteDoFunilDoContato;
   loadActiveRouter?: typeof loadActiveRouter;
   loadPublishedAgentConfigById?: typeof loadPublishedAgentConfigById;
   loadPublishedAgentConfig?: typeof loadPublishedAgentConfig;
@@ -148,6 +154,45 @@ export async function resolveTurnAgent(
         tenantId: input.tenantId,
         conversationId: input.conversationId,
       });
+    }
+
+    // A associação é declarada no funil, separada do escopo da versão. Ela
+    // precede a intenção e é reavaliada a cada turno: quando o negócio deixa
+    // de ser a correspondência única, o agente deixa de ser escolhido por ela.
+    let correspondencia: Awaited<ReturnType<typeof agenteDoFunilDoContato>> = { kind: 'none' };
+    try {
+      correspondencia = await (deps.agenteDoFunil ?? agenteDoFunilDoContato)(
+        db, input.tenantId, input.leadId,
+      );
+    } catch (err) {
+      deps.log.warn('leitura do responsável pelo funil falhou; revisão humana necessária', {
+        reason: err instanceof Error ? err.name : 'unknown',
+      });
+      // Uma consulta que falhou não comprova ausência de associação. Deixar
+      // o router seguir poderia trocar o agente de um negócio já vinculado.
+      return { config: null, routerId: null, intentName: null, confidence: null, outcome: 'pipeline_invalid' };
+    }
+    if (correspondencia.kind === 'ambiguous') {
+      deps.log.warn('roteamento por funil precisa de revisão humana', { reason: 'multiple_open_mapped_leads' });
+      return { config: null, routerId: null, intentName: null, confidence: null, outcome: 'pipeline_ambiguous' };
+    }
+    if (correspondencia.kind === 'one') {
+      let config: PublishedAgentConfig | null = null;
+      try {
+        config = await _loadAgentById(db, input.tenantId, correspondencia.agentId);
+      } catch (err) {
+        deps.log.warn('não foi possível validar o agente do funil; revisão humana necessária', {
+          reason: err instanceof Error ? err.name : 'unknown',
+        });
+        return { config: null, routerId: null, intentName: null, confidence: null, outcome: 'pipeline_invalid' };
+      }
+      if (config !== null && !config.pausedAt && config.pipelineIds.includes(correspondencia.pipelineId)) {
+        return { config, routerId: null, intentName: null, confidence: null, outcome: 'pipeline' };
+      }
+      deps.log.warn('agente do funil indisponível ou sem escopo; revisão humana necessária', {
+        reason: config === null ? 'unpublished_or_archived' : config.pausedAt ? 'paused' : 'pipeline_scope_missing',
+      });
+      return { config: null, routerId: null, intentName: null, confidence: null, outcome: 'pipeline_invalid' };
     }
 
     const router = await _loadActiveRouter(db, input.tenantId, input.channelSessionId);

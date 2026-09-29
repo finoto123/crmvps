@@ -4750,6 +4750,7 @@ export type Database = {
           name: string
           organization_id: string
           position: number
+          responsible_agent_id: string | null
           settings: Json
           slug: string
           updated_at: string
@@ -4765,6 +4766,7 @@ export type Database = {
           name: string
           organization_id: string
           position?: number
+          responsible_agent_id?: string | null
           settings?: Json
           slug: string
           updated_at?: string
@@ -4780,12 +4782,20 @@ export type Database = {
           name?: string
           organization_id?: string
           position?: number
+          responsible_agent_id?: string | null
           settings?: Json
           slug?: string
           updated_at?: string
           vocabulary?: Json
         }
         Relationships: [
+          {
+            foreignKeyName: "crm_pipelines_responsible_agent_org_fk"
+            columns: ["organization_id", "responsible_agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["organization_id", "id"]
+          },
           {
             foreignKeyName: "crm_pipelines_organization_id_fkey"
             columns: ["organization_id"]
@@ -10140,4 +10150,3 @@ export const Constants = {
     },
   },
 } as const
-

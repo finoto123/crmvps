@@ -1059,6 +1059,7 @@ jobs:
         qa-l12-inbox.spec.ts
         filtro-por-marcador-pela-tela.spec.ts
         funil-arquivado-volta-pela-tela.spec.ts
+        responsavel-do-funil.spec.ts
         followup-builder.spec.ts
         followup-journey.spec.ts
         followup-dossie.spec.ts

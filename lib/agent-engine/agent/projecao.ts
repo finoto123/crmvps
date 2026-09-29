@@ -63,6 +63,7 @@ export interface MensagemProjetada {
 
 /** O contexto como o Conversador o lê. Tudo o que não está aqui, ele não vê. */
 export interface ContextoProjetado {
+  diagnostico?: string;
   contato: {
     nome: string | null;
     telefone: string | null;
@@ -81,6 +82,7 @@ export interface ContextoProjetado {
  */
 export function projetarContexto(ctx: LeadContext): ContextoProjetado {
   return {
+    ...(ctx.diagnostico ? { diagnostico: ctx.diagnostico } : {}),
     contato: {
       nome: ctx.contact.name,
       telefone: ctx.contact.phone,
