@@ -61,7 +61,7 @@ const BOT = "deskcomm-release[bot]";
 
 /** O login com que a API apresenta o App — o e-mail do corte real confirma o slug. */
 const LOGIN_DO_APP = "deskcommcrm-release[bot]";
-const REPO_DE_CIMA = "melgarafael/DeskcommCRM";
+const REPO_DE_CIMA = "finoto123/crmvps";
 
 /** Uma linha no formato que o `--jq` da guarda produz: cinco campos por TAB. */
 function linhaDaApi(login: string, tipo: string, ref: string, repo: string, numero: number): string {
