@@ -20293,8 +20293,9 @@ revoke all on function public.fn_appointment_stamp() from public,anon,authentica
 drop trigger if exists trg_appointment_stamp on public.calendar_appointments;
 create trigger trg_appointment_stamp before insert or update on public.calendar_appointments for each row execute function public.fn_appointment_stamp();
 
--- Serializa a disputa pelo horário do mesmo responsável. A consulta de slots
--- feita pelo aplicativo ocorre antes do INSERT e sozinha não fecha a corrida.
+-- Serializa a disputa pelo horário exato do mesmo responsável. Só reservas
+-- pending/confirmed ocupam esse horário; a consulta de slots feita pelo
+-- aplicativo antes do INSERT, sozinha, não fecha a corrida.
 create or replace function public.fn_appointment_prevent_overlap()
 returns trigger language plpgsql security definer set search_path=public as $$
 begin
